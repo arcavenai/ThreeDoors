@@ -165,8 +165,8 @@ So that I can manage tasks from either device seamlessly.
     }
     ```
   - [x] 3.9: Update SyncState after successful merge (save new snapshots, clear dirty flags)
-- [x] Task 4: Integrate sync into app lifecycle (AC: 1, 2, 3, 6)
-  - [x] 4.1: Implement sync as async `tea.Cmd` in Bubbletea:
+- [ ] Task 4: Integrate sync into app lifecycle (AC: 1, 2, 3, 6)
+  - [ ] 4.1: Implement sync as async `tea.Cmd` in Bubbletea:
     ```go
     // In main_model.go
     func (m MainModel) syncCmd() tea.Msg {
@@ -177,23 +177,23 @@ So that I can manage tasks from either device seamlessly.
         return SyncResultMsg{Result: result}
     }
     ```
-  - [x] 4.2: Call sync on app startup: return `syncCmd` from `Init()` method
-  - [x] 4.3: Handle `S` key in doors view to trigger sync refresh: return `syncCmd` from `Update()`
-  - [x] 4.4: Handle `SyncResultMsg` in `Update()`: update pool, show notification
-  - [x] 4.5: Handle `SyncErrorMsg` in `Update()`: show warning in status bar, preserve local state
-  - [x] 4.6: Ensure sync runs in goroutine (via `tea.Cmd`) so UI remains responsive
-- [x] Task 5: Add sync notification UI (AC: 4, 6)
-  - [x] 5.1: Add `syncNotification` field to `MainModel`:
+  - [ ] 4.2: Call sync on app startup: return `syncCmd` from `Init()` method
+  - [ ] 4.3: Handle `S` key in doors view to trigger sync refresh: return `syncCmd` from `Update()`
+  - [ ] 4.4: Handle `SyncResultMsg` in `Update()`: update pool, show notification
+  - [ ] 4.5: Handle `SyncErrorMsg` in `Update()`: show warning in status bar, preserve local state
+  - [ ] 4.6: Ensure sync runs in goroutine (via `tea.Cmd`) so UI remains responsive
+- [ ] Task 5: Add sync notification UI (AC: 4, 6)
+  - [ ] 5.1: Add `syncNotification` field to `MainModel`:
     ```go
     syncNotification string    // current notification text
     syncNotifyExpiry time.Time // when to auto-dismiss
     ```
-  - [x] 5.2: Display sync summary in status bar area (bottom of screen, dimmed style):
+  - [ ] 5.2: Display sync summary in status bar area (bottom of screen, dimmed style):
     - Normal sync: "Synced: 2 new, 1 updated, 1 removed" (green/dimmed)
     - Conflict override: "Your change to 'Task X' overridden by iPhone edit" (yellow/warning)
     - Sync error: "Sync failed: [reason]. Using local data." (red/dimmed)
-  - [x] 5.3: Auto-dismiss after 5 seconds via `tea.Tick` or dismiss on any keypress
-  - [x] 5.4: Use existing Lipgloss styles - add `SyncNotificationStyle` to styles.go
+  - [ ] 5.3: Auto-dismiss after 5 seconds via `tea.Tick` or dismiss on any keypress
+  - [ ] 5.4: Use existing Lipgloss styles - add `SyncNotificationStyle` to styles.go
 - [x] Task 6: Write comprehensive tests for all sync scenarios
   - [x] 6.0: Create test helper functions in `internal/tasks/test_helpers_test.go`:
     ```go

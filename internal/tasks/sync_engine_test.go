@@ -479,7 +479,7 @@ func TestSync_FullCycle(t *testing.T) {
 	engine := NewSyncEngine()
 
 	// Run full sync
-	result, err := engine.Sync(provider, syncState, pool)
+	result, _, err := engine.Sync(provider, syncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() failed: %v", err)
 	}
@@ -518,7 +518,7 @@ func TestSync_ProviderLoadError(t *testing.T) {
 	pool := poolFromTasks(newTestTask("aaa", "Task A", StatusTodo, baseTime))
 
 	engine := NewSyncEngine()
-	_, err := engine.Sync(provider, syncState, pool)
+	_, _, err := engine.Sync(provider, syncState, pool)
 
 	if err == nil {
 		t.Error("Sync() should return error when provider fails")
@@ -543,7 +543,7 @@ func TestSync_FirstSync_EmptySyncState(t *testing.T) {
 	pool := NewTaskPool()
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, emptySyncState, pool)
+	result, _, err := engine.Sync(provider, emptySyncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() failed: %v", err)
 	}
@@ -564,7 +564,7 @@ func TestSync_EmptyRemote_AllDeleted(t *testing.T) {
 	pool := poolFromTasks(taskA, taskB)
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, syncState, pool)
+	result, _, err := engine.Sync(provider, syncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() failed: %v", err)
 	}
@@ -585,7 +585,7 @@ func TestSync_CorruptRemoteTask_Skipped(t *testing.T) {
 	pool := NewTaskPool()
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, emptySyncState, pool)
+	result, _, err := engine.Sync(provider, emptySyncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() should not fail for corrupt tasks, got: %v", err)
 	}
@@ -607,7 +607,7 @@ func TestSync_EmptyTaskText_Skipped(t *testing.T) {
 	pool := NewTaskPool()
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, emptySyncState, pool)
+	result, _, err := engine.Sync(provider, emptySyncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() should not fail for empty text tasks, got: %v", err)
 	}
@@ -625,7 +625,7 @@ func TestSync_ZeroTasks_BothSides(t *testing.T) {
 	pool := NewTaskPool()
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, emptySyncState, pool)
+	result, _, err := engine.Sync(provider, emptySyncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() failed: %v", err)
 	}
@@ -644,7 +644,7 @@ func TestSync_NilRemoteTasks_Skipped(t *testing.T) {
 	pool := NewTaskPool()
 
 	engine := NewSyncEngine()
-	result, err := engine.Sync(provider, emptySyncState, pool)
+	result, _, err := engine.Sync(provider, emptySyncState, pool)
 	if err != nil {
 		t.Fatalf("Sync() should not fail for nil tasks, got: %v", err)
 	}
@@ -693,7 +693,7 @@ func TestSync_Performance100Tasks(t *testing.T) {
 	engine := NewSyncEngine()
 
 	start := time.Now()
-	_, err := engine.Sync(provider, syncState, pool)
+	_, _, err := engine.Sync(provider, syncState, pool)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -703,4 +703,93 @@ func TestSync_Performance100Tasks(t *testing.T) {
 		t.Errorf("Sync took %v, expected < 2s", elapsed)
 	}
 	t.Logf("Sync of %d tasks completed in %v", taskCount, elapsed)
+}
+
+// =============================================================================
+// SyncState Update Tests
+// =============================================================================
+
+func TestSync_ReturnsSyncState(t *testing.T) {
+	taskA := newTestTask("aaa", "Task A", StatusTodo, baseTime)
+	taskNew := newTestTask("ccc", "New task", StatusTodo, laterTime)
+
+	provider := &MockProvider{Tasks: []*Task{taskA, taskNew}}
+	emptySyncState := SyncState{TaskSnapshots: make(map[string]TaskSnapshot)}
+	pool := poolFromTasks(taskA)
+
+	engine := NewSyncEngine()
+	_, newState, err := engine.Sync(provider, emptySyncState, pool)
+	if err != nil {
+		t.Fatalf("Sync() failed: %v", err)
+	}
+
+	// New SyncState should have snapshots for all tasks in pool after merge
+	if len(newState.TaskSnapshots) != 2 {
+		t.Errorf("NewState.TaskSnapshots = %d, want 2", len(newState.TaskSnapshots))
+	}
+	if _, ok := newState.TaskSnapshots["aaa"]; !ok {
+		t.Error("NewState should contain snapshot for task 'aaa'")
+	}
+	if _, ok := newState.TaskSnapshots["ccc"]; !ok {
+		t.Error("NewState should contain snapshot for task 'ccc'")
+	}
+	if newState.LastSyncTime.IsZero() {
+		t.Error("NewState.LastSyncTime should be set")
+	}
+	// All snapshots should be clean (Dirty=false)
+	for id, snap := range newState.TaskSnapshots {
+		if snap.Dirty {
+			t.Errorf("Snapshot %q should be Dirty=false after sync", id)
+		}
+	}
+}
+
+func TestBuildSyncState(t *testing.T) {
+	taskA := newTestTask("aaa", "Task A", StatusTodo, baseTime)
+	taskB := newTestTask("bbb", "Task B", StatusInProgress, laterTime)
+	pool := poolFromTasks(taskA, taskB)
+
+	engine := NewSyncEngine()
+	state := engine.BuildSyncState(pool)
+
+	if len(state.TaskSnapshots) != 2 {
+		t.Fatalf("TaskSnapshots = %d, want 2", len(state.TaskSnapshots))
+	}
+	if state.LastSyncTime.IsZero() {
+		t.Error("LastSyncTime should be set")
+	}
+
+	snapA := state.TaskSnapshots["aaa"]
+	if snapA.Text != "Task A" {
+		t.Errorf("Snapshot A text = %q, want %q", snapA.Text, "Task A")
+	}
+	if snapA.Dirty {
+		t.Error("Snapshot A should not be dirty")
+	}
+}
+
+func TestMarkDirty(t *testing.T) {
+	taskA := newTestTask("aaa", "Task A", StatusTodo, baseTime)
+	taskB := newTestTask("bbb", "Task B", StatusTodo, baseTime)
+	state := newTestSyncState(taskA, taskB)
+
+	MarkDirty(&state, "aaa")
+
+	if !state.TaskSnapshots["aaa"].Dirty {
+		t.Error("Task 'aaa' should be dirty after MarkDirty")
+	}
+	if state.TaskSnapshots["bbb"].Dirty {
+		t.Error("Task 'bbb' should NOT be dirty")
+	}
+}
+
+func TestMarkDirty_NonExistentTask(t *testing.T) {
+	state := SyncState{TaskSnapshots: make(map[string]TaskSnapshot)}
+
+	// Should not panic
+	MarkDirty(&state, "nonexistent")
+
+	if len(state.TaskSnapshots) != 0 {
+		t.Error("MarkDirty should not create new entries")
+	}
 }

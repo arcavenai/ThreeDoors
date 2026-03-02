@@ -1,6 +1,9 @@
 package tasks
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ChangeSet represents the differences detected between local and remote task lists.
 type ChangeSet struct {
@@ -113,9 +116,10 @@ func (e *SyncEngine) ResolveConflicts(conflicts []Conflict) []Resolution {
 			TaskID: c.LocalTask.ID,
 		}
 
-		// Check for identical changes (same text and status = no real conflict)
+		// Check for identical changes (same text, status, and notes = no real conflict)
 		identical := c.LocalTask.Text == c.RemoteTask.Text &&
-			c.LocalTask.Status == c.RemoteTask.Status
+			c.LocalTask.Status == c.RemoteTask.Status &&
+			len(c.LocalTask.Notes) == len(c.RemoteTask.Notes)
 
 		if identical {
 			// No real conflict - pick remote as canonical, no override
@@ -188,12 +192,13 @@ func (e *SyncEngine) ApplyChanges(pool *TaskPool, changes ChangeSet, resolutions
 }
 
 // Sync performs a full sync cycle: load remote, detect changes, resolve conflicts, apply.
-// Returns SyncResult with counts and any override notifications.
-// On provider error, returns error and leaves pool unchanged.
-func (e *SyncEngine) Sync(provider TaskProvider, syncState SyncState, pool *TaskPool) (SyncResult, error) {
+// Returns SyncResult with counts and any override notifications, plus the updated SyncState
+// that should be persisted by the caller.
+// On provider error, returns error and leaves pool and syncState unchanged.
+func (e *SyncEngine) Sync(provider TaskProvider, syncState SyncState, pool *TaskPool) (SyncResult, SyncState, error) {
 	remote, err := provider.LoadTasks()
 	if err != nil {
-		return SyncResult{}, fmt.Errorf("sync: load remote: %w", err)
+		return SyncResult{}, syncState, fmt.Errorf("sync: load remote: %w", err)
 	}
 
 	// Filter invalid remote tasks
@@ -221,5 +226,37 @@ func (e *SyncEngine) Sync(provider TaskProvider, syncState SyncState, pool *Task
 	result := e.ApplyChanges(pool, changes, resolutions)
 	result.Errors = append(result.Errors, syncErrors...)
 
-	return result, nil
+	// Build updated SyncState from current pool state after merge
+	newState := e.BuildSyncState(pool)
+
+	return result, newState, nil
+}
+
+// BuildSyncState creates a fresh SyncState snapshot from the current pool contents.
+// All tasks are marked Dirty=false (clean baseline after sync).
+func (e *SyncEngine) BuildSyncState(pool *TaskPool) SyncState {
+	now := time.Now().UTC()
+	state := SyncState{
+		LastSyncTime:  now,
+		TaskSnapshots: make(map[string]TaskSnapshot, pool.Count()),
+	}
+	for _, t := range pool.GetAllTasks() {
+		state.TaskSnapshots[t.ID] = TaskSnapshot{
+			ID:        t.ID,
+			Text:      t.Text,
+			Status:    t.Status,
+			UpdatedAt: t.UpdatedAt,
+			Dirty:     false,
+		}
+	}
+	return state
+}
+
+// MarkDirty marks a task as locally modified in the SyncState.
+// Call this whenever a task is changed locally (status change, note added, etc.).
+func MarkDirty(state *SyncState, taskID string) {
+	if snap, ok := state.TaskSnapshots[taskID]; ok {
+		snap.Dirty = true
+		state.TaskSnapshots[taskID] = snap
+	}
 }
