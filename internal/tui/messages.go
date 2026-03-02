@@ -50,6 +50,11 @@ type TaskAddedMsg struct {
 // SearchClosedMsg is sent when the user exits search mode.
 type SearchClosedMsg struct{}
 
+// OpenDetailFromSearchMsg is sent when opening detail from search (used by MainModel).
+type OpenDetailFromSearchMsg struct {
+	Task *tasks.Task
+}
+
 // ReturnToSearchMsg is sent to restore search view from detail view.
 type ReturnToSearchMsg struct {
 	Query         string

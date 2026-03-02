@@ -22,6 +22,7 @@ const (
 type MainModel struct {
 	viewMode            ViewMode
 	previousView        ViewMode
+	fromSearch          bool
 	doorsView           *DoorsView
 	detailView          *DetailView
 	moodView            *MoodView
@@ -74,18 +75,20 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ReturnToDoorsMsg:
 		// If we came from search, return to search instead
-		if m.previousView == ViewSearch {
+		if m.previousView == ViewSearch || m.fromSearch {
 			m.searchView = NewSearchView(m.pool, m.tracker)
 			m.searchView.SetWidth(m.width)
 			m.searchView.RestoreState(m.searchQuery, m.searchSelectedIndex)
 			m.viewMode = ViewSearch
 			m.detailView = nil
 			m.previousView = ViewDoors
+			m.fromSearch = false
 			return m, nil
 		}
 		m.viewMode = ViewDoors
 		m.detailView = nil
 		m.moodView = nil
+		m.fromSearch = false
 		m.doorsView.RefreshDoors()
 		return m, nil
 
@@ -102,6 +105,20 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewMode = ViewDoors
 		m.searchView = nil
 		m.previousView = ViewDoors
+		m.fromSearch = false
+		return m, nil
+
+	case OpenDetailFromSearchMsg:
+		// Save search state for context-aware return
+		if m.searchView != nil {
+			m.searchQuery = m.searchView.textInput.Value()
+			m.searchSelectedIndex = m.searchView.selectedIndex
+		}
+		m.previousView = ViewSearch
+		m.fromSearch = true
+		m.detailView = NewDetailView(msg.Task, m.tracker)
+		m.detailView.SetWidth(m.width)
+		m.viewMode = ViewDetail
 		return m, nil
 
 	case SearchResultSelectedMsg:
@@ -111,6 +128,7 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchSelectedIndex = m.searchView.selectedIndex
 		}
 		m.previousView = ViewSearch
+		m.fromSearch = true
 		m.detailView = NewDetailView(msg.Task, m.tracker)
 		m.detailView.SetWidth(m.width)
 		m.viewMode = ViewDetail

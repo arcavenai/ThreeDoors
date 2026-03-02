@@ -186,6 +186,9 @@ func (sv *SearchView) Update(msg tea.Msg) tea.Cmd {
 			}
 			return nil
 
+		case tea.KeyCtrlC:
+			return tea.Quit
+
 		default:
 			// Check for j/k vi-style navigation
 			if msg.Type == tea.KeyRunes {

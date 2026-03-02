@@ -479,3 +479,197 @@ func TestSessionTracker_RefreshRecorded(t *testing.T) {
 		t.Errorf("expected 1 refresh, got %d", metrics.RefreshesUsed)
 	}
 }
+
+// --- Search Integration Tests (Story 1.3a) ---
+
+func TestSlashKey_OpensSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	m.Update(keyMsg("/"))
+	if m.viewMode != ViewSearch {
+		t.Errorf("expected ViewSearch after '/', got %d", m.viewMode)
+	}
+	if m.searchView == nil {
+		t.Fatal("searchView should not be nil after '/'")
+	}
+}
+
+func TestSlashKey_SearchViewRendered(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	m.Update(keyMsg("/"))
+	view := m.View()
+	if !strings.Contains(view, "Search") {
+		t.Error("View should contain 'Search' when in search mode")
+	}
+}
+
+func TestOpenDetailFromSearch_SetsFromSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+
+	// Open search
+	m.Update(keyMsg("/"))
+	if m.viewMode != ViewSearch {
+		t.Fatal("should be in ViewSearch")
+	}
+
+	// Simulate receiving OpenDetailFromSearchMsg
+	task := m.pool.GetAllTasks()[0]
+	m.Update(OpenDetailFromSearchMsg{Task: task})
+
+	if m.viewMode != ViewDetail {
+		t.Errorf("expected ViewDetail, got %d", m.viewMode)
+	}
+	if !m.fromSearch {
+		t.Error("fromSearch should be true when detail opened from search")
+	}
+	if m.detailView == nil {
+		t.Fatal("detailView should not be nil")
+	}
+}
+
+func TestEscFromDetail_WhenFromSearch_ReturnsToSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+
+	// Open search
+	m.Update(keyMsg("/"))
+
+	// Open detail from search
+	task := m.pool.GetAllTasks()[0]
+	m.Update(OpenDetailFromSearchMsg{Task: task})
+	if m.viewMode != ViewDetail {
+		t.Fatal("should be in ViewDetail")
+	}
+
+	// Press Esc — should return to search, not doors
+	_, cmd := m.Update(keyMsg("esc"))
+	if cmd != nil {
+		msg := cmd()
+		m.Update(msg)
+	}
+
+	if m.viewMode != ViewSearch {
+		t.Errorf("expected ViewSearch when fromSearch=true, got %d", m.viewMode)
+	}
+	if m.searchView == nil {
+		t.Error("searchView should be preserved when returning from detail")
+	}
+}
+
+func TestEscFromDetail_WhenNotFromSearch_ReturnsToDoors(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+
+	// Open detail directly (not from search)
+	m.Update(keyMsg("w"))
+	m.Update(keyMsg("enter"))
+	if m.viewMode != ViewDetail {
+		t.Fatal("should be in ViewDetail")
+	}
+	if m.fromSearch {
+		t.Fatal("fromSearch should be false when opened from doors")
+	}
+
+	// Press Esc — should return to doors
+	_, cmd := m.Update(keyMsg("esc"))
+	if cmd != nil {
+		msg := cmd()
+		m.Update(msg)
+	}
+
+	if m.viewMode != ViewDoors {
+		t.Errorf("expected ViewDoors, got %d", m.viewMode)
+	}
+}
+
+func TestReturnToDoorsFromSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+
+	// Open search
+	m.Update(keyMsg("/"))
+	if m.viewMode != ViewSearch {
+		t.Fatal("should be in ViewSearch")
+	}
+
+	// Press Esc in search — should go to doors
+	_, cmd := m.Update(keyMsg("esc"))
+	if cmd != nil {
+		msg := cmd()
+		m.Update(msg)
+	}
+
+	if m.viewMode != ViewDoors {
+		t.Errorf("expected ViewDoors after Esc from search, got %d", m.viewMode)
+	}
+	if m.searchView != nil {
+		t.Error("searchView should be cleared after returning to doors")
+	}
+}
+
+func TestTaskAddedMsg_SavesAndFlashes(t *testing.T) {
+	tasks.SetHomeDir(t.TempDir())
+	defer tasks.SetHomeDir("")
+
+	m := makeModel("task1", "task2", "task3")
+
+	// Open search
+	m.Update(keyMsg("/"))
+
+	// Simulate TaskAddedMsg
+	newTask := tasks.NewTask("New task from search")
+	m.pool.AddTask(newTask)
+	m.Update(TaskAddedMsg{Task: newTask})
+
+	// Should still be in search mode
+	if m.viewMode != ViewSearch {
+		t.Errorf("expected ViewSearch after TaskAddedMsg, got %d", m.viewMode)
+	}
+
+	// Flash should show
+	if !strings.Contains(m.flash, "Task added") {
+		t.Errorf("expected flash 'Task added', got %q", m.flash)
+	}
+}
+
+func TestTaskCompletedFromSearch_ReturnsToDoors(t *testing.T) {
+	tasks.SetHomeDir(t.TempDir())
+	defer tasks.SetHomeDir("")
+
+	m := makeModel("task1", "task2", "task3", "task4", "task5")
+
+	// Open search
+	m.Update(keyMsg("/"))
+
+	// Open detail from search
+	task := m.pool.GetAllTasks()[0]
+	m.Update(OpenDetailFromSearchMsg{Task: task})
+
+	// Complete the task
+	_, cmd := m.Update(keyMsg("c"))
+	if cmd != nil {
+		msg := cmd()
+		m.Update(msg)
+	}
+
+	// TaskCompletedMsg should return to doors, not search
+	if m.viewMode != ViewDoors {
+		t.Errorf("expected ViewDoors after completing task from search, got %d", m.viewMode)
+	}
+}
+
+func TestCtrlC_QuitsFromSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	m.Update(keyMsg("/"))
+
+	_, cmd := m.Update(keyMsg("ctrl+c"))
+	if cmd == nil {
+		t.Fatal("expected quit command from Ctrl+C in search")
+	}
+}
+
+func TestWindowSizeMsg_PropagatedToSearchView(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	m.Update(keyMsg("/"))
+
+	m.Update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	if m.searchView != nil && m.searchView.width != 150 {
+		t.Errorf("expected searchView width 150, got %d", m.searchView.width)
+	}
+}
