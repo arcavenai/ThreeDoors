@@ -114,6 +114,11 @@ func (st *SessionTracker) RecordMood(mood string, customText string) {
 	st.metrics.MoodEntryCount++
 }
 
+// GetMetrics returns a snapshot of current metrics without mutating state.
+func (st *SessionTracker) GetMetrics() *SessionMetrics {
+	return st.metrics
+}
+
 // Finalize calculates session duration and returns metrics for persistence.
 func (st *SessionTracker) Finalize() *SessionMetrics {
 	st.metrics.EndTime = time.Now().UTC()

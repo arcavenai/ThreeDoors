@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/arcaven/ThreeDoors/internal/tasks"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -55,7 +57,7 @@ func (sv *SearchView) RestoreState(query string, selectedIndex int) {
 	}
 }
 
-// filterTasks returns tasks matching query by case-insensitive substring match.
+// filterTasks returns tasks matching query by case-insensitive substring match, sorted alphabetically.
 func (sv *SearchView) filterTasks(query string) []*tasks.Task {
 	if query == "" {
 		return nil
@@ -68,6 +70,9 @@ func (sv *SearchView) filterTasks(query string) []*tasks.Task {
 			matched = append(matched, t)
 		}
 	}
+	sort.Slice(matched, func(i, j int) bool {
+		return matched[i].Text < matched[j].Text
+	})
 	return matched
 }
 
@@ -106,6 +111,21 @@ func (sv *SearchView) executeCommand() tea.Cmd {
 
 	case "mood":
 		if args != "" {
+			// Validate mood against valid options
+			validMoods := []string{"Focused", "Tired", "Stressed", "Energized", "Distracted", "Calm"}
+			valid := false
+			for _, m := range validMoods {
+				if strings.EqualFold(args, m) {
+					args = m // normalize case
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return func() tea.Msg {
+					return FlashMsg{Text: "Invalid mood. Valid: Focused, Tired, Stressed, Energized, Distracted, Calm"}
+				}
+			}
 			return func() tea.Msg {
 				return MoodCapturedMsg{Mood: args}
 			}
@@ -141,9 +161,10 @@ func (sv *SearchView) showStats() tea.Cmd {
 			return FlashMsg{Text: "Session stats: No tracker available"}
 		}
 	}
-	metrics := sv.tracker.Finalize()
-	text := fmt.Sprintf("Session Stats | Completed: %d | Doors viewed: %d | Refreshes: %d",
-		metrics.TasksCompleted, metrics.DetailViews, metrics.RefreshesUsed)
+	metrics := sv.tracker.GetMetrics()
+	duration := time.Since(metrics.StartTime)
+	text := fmt.Sprintf("Session Stats | Completed: %d | Doors viewed: %d | Refreshes: %d | Duration: %dm",
+		metrics.TasksCompleted, metrics.DoorsViewed, metrics.RefreshesUsed, int(duration.Minutes()))
 	return func() tea.Msg {
 		return FlashMsg{Text: text}
 	}
