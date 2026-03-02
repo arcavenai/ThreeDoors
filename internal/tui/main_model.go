@@ -95,6 +95,7 @@ if m.healthView != nil {
 			m.searchView.RestoreState(m.searchQuery, m.searchSelectedIndex)
 			m.viewMode = ViewSearch
 			m.detailView = nil
+			m.addTaskView = nil
 			m.previousView = ViewDoors
 			return m, nil
 		}
@@ -102,6 +103,7 @@ if m.healthView != nil {
 		m.detailView = nil
 		m.moodView = nil
 		m.healthView = nil
+		m.addTaskView = nil
 		m.doorsView.RefreshDoors()
 		return m, nil
 
@@ -152,9 +154,17 @@ if m.healthView != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to save tasks: %v\n", err)
 		}
 		m.flash = "Task added"
-		m.viewMode = ViewDoors
 		m.addTaskView = nil
-		m.doorsView.RefreshDoors()
+		// Return to previous view if it was search, otherwise doors
+		if m.previousView == ViewSearch {
+			m.searchView = NewSearchView(m.pool, m.tracker, m.healthChecker)
+			m.searchView.SetWidth(m.width)
+			m.viewMode = ViewSearch
+			m.previousView = ViewDoors
+		} else {
+			m.viewMode = ViewDoors
+			m.doorsView.RefreshDoors()
+		}
 		return m, ClearFlashCmd()
 
 	case TaskCompletedMsg:

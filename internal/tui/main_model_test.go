@@ -662,6 +662,35 @@ func TestTaskAddedMsg_EmptyPool_AddsTask(t *testing.T) {
 	}
 }
 
+// TaskAddedMsg from search context returns to search
+func TestTaskAddedMsg_FromSearch_ReturnsToSearch(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	// Simulate coming from search
+	m.previousView = ViewSearch
+	m.viewMode = ViewAddTask
+
+	newTask := tasks.NewTask("new task from search")
+	m.Update(TaskAddedMsg{Task: newTask})
+
+	if m.viewMode != ViewSearch {
+		t.Errorf("expected ViewSearch after TaskAddedMsg from search context, got %d", m.viewMode)
+	}
+}
+
+// TaskAddedMsg from doors context returns to doors
+func TestTaskAddedMsg_FromDoors_ReturnsToDoors(t *testing.T) {
+	m := makeModel("task1", "task2", "task3")
+	m.previousView = ViewDoors
+	m.viewMode = ViewAddTask
+
+	newTask := tasks.NewTask("new task from doors")
+	m.Update(TaskAddedMsg{Task: newTask})
+
+	if m.viewMode != ViewDoors {
+		t.Errorf("expected ViewDoors after TaskAddedMsg from doors context, got %d", m.viewMode)
+	}
+}
+
 // AddTaskPromptMsg preserves previousView
 func TestAddTaskPromptMsg_PreservesPreviousView(t *testing.T) {
 	m := makeModel("task1", "task2", "task3")
