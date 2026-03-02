@@ -781,7 +781,7 @@ func (pa *PatternAnalyzer) GetMostFrequentMood() string {
 	var best string
 	var bestCount int
 	for mood, count := range counts {
-		if count > bestCount {
+		if count > bestCount || (count == bestCount && mood < best) {
 			best = mood
 			bestCount = count
 		}

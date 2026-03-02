@@ -18,7 +18,6 @@ type InsightsView struct {
 	analyzer *tasks.PatternAnalyzer
 	counter  *tasks.CompletionCounter
 	width    int
-	scroll   int
 }
 
 // NewInsightsView creates a new InsightsView.
@@ -37,15 +36,8 @@ func (iv *InsightsView) SetWidth(w int) {
 // Update handles messages for the insights view.
 func (iv *InsightsView) Update(msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case tea.KeyEscape:
+		if msg.Type == tea.KeyEscape {
 			return func() tea.Msg { return ReturnToDoorsMsg{} }
-		case tea.KeyUp:
-			if iv.scroll > 0 {
-				iv.scroll--
-			}
-		case tea.KeyDown:
-			iv.scroll++
 		}
 	}
 	return nil

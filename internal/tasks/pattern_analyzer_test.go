@@ -449,7 +449,7 @@ func TestGetMoodCorrelations_SessionsWithNoMoods_Excluded(t *testing.T) {
 	now := time.Date(2026, 3, 2, 14, 0, 0, 0, time.UTC)
 
 	sessions := []SessionMetrics{
-		makeTestSession(now.Add(-2*time.Hour), 5, nil, nil),
+		makeTestSession(now.Add(-2*time.Hour), 5, nil, nil), // no mood
 		makeTestSession(now.Add(-1*time.Hour), 3, []string{"Focused"}, nil),
 		makeTestSession(now, 4, []string{"Focused"}, nil),
 	}

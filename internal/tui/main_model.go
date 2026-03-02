@@ -139,6 +139,9 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.healthView != nil {
 			m.healthView.SetWidth(msg.Width)
 		}
+		if m.insightsView != nil {
+			m.insightsView.SetWidth(msg.Width)
+		}
 		if m.addTaskView != nil {
 			m.addTaskView.SetWidth(msg.Width)
 		}
@@ -182,8 +185,8 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detailView = nil
 		m.moodView = nil
 		m.healthView = nil
-		m.addTaskView = nil
 		m.insightsView = nil
+		m.addTaskView = nil
 		m.doorsView.RefreshDoors()
 		return m, nil
 
