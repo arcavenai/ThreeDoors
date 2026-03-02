@@ -75,7 +75,7 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.searchView != nil {
 			m.searchView.SetWidth(msg.Width)
 		}
-if m.healthView != nil {
+		if m.healthView != nil {
 			m.healthView.SetWidth(msg.Width)
 		}
 		if m.addTaskView != nil {
@@ -220,7 +220,7 @@ if m.healthView != nil {
 		return m.updateMood(msg)
 	case ViewSearch:
 		return m.updateSearch(msg)
-case ViewHealth:
+	case ViewHealth:
 		return m.updateHealth(msg)
 	case ViewAddTask:
 		return m.updateAddTask(msg)
@@ -338,7 +338,7 @@ func (m *MainModel) View() string {
 		if m.searchView != nil {
 			view = m.searchView.View()
 		}
-case ViewHealth:
+	case ViewHealth:
 		if m.healthView != nil {
 			view = m.healthView.View()
 		}
