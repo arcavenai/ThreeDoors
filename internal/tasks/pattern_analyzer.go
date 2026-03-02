@@ -83,7 +83,7 @@ func (pa *PatternAnalyzer) ReadSessions(path string) ([]SessionMetrics, error) {
 		}
 		return nil, fmt.Errorf("opening sessions file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var sessions []SessionMetrics
 	scanner := bufio.NewScanner(f)
@@ -370,7 +370,7 @@ func (pa *PatternAnalyzer) SavePatterns(report *PatternReport, path string) erro
 		return fmt.Errorf("writing patterns temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming patterns file: %w", err)
 	}
 	return nil
