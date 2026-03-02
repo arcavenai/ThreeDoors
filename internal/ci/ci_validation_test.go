@@ -35,6 +35,7 @@ func TestToolVersionConsistency(t *testing.T) {
 			name:       "golangci-lint doc version matches config major version",
 			docFile:    "docs/architecture/tech-stack.md",
 			configFile: ".golangci.yml",
+			// Matches: "| golangci-lint | 2.10.1 |" in markdown table format
 			docPattern: regexp.MustCompile(`golangci-lint\s*\|\s*(\d+)\.\d+\.\d+`),
 			cfgPattern: regexp.MustCompile(`version:\s*"(\d+)"`),
 			compareFn: func(docVer, cfgVer string) bool {

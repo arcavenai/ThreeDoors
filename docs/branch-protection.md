@@ -44,13 +44,23 @@ Using GitHub CLI:
 ```bash
 gh api repos/arcaven/ThreeDoors/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["Quality Gate"]}' \
-  --field enforce_admins=true \
-  --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
-  --field restrictions=null \
-  --field allow_force_pushes=false \
-  --field allow_deletions=false \
-  --field required_linear_history=true
+  --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Quality Gate"]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_linear_history": true
+}
+EOF
 ```
 
 ## How to Verify (Admin)
