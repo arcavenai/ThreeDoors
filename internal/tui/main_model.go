@@ -81,16 +81,11 @@ func NewMainModel(pool *tasks.TaskPool, tracker *tasks.SessionTracker, provider 
 		}
 	}
 
-	// Load cached pattern report (non-blocking — analysis runs in main.go goroutine)
+	// Initialize pattern analyzer: load both cached report and session history
+	pa := tasks.NewPatternAnalyzer()
 	var patternReport *tasks.PatternReport
 	if configPath, err := tasks.GetConfigDirPath(); err == nil {
-		analyzer := tasks.NewPatternAnalyzer()
-		patternReport, _ = analyzer.LoadPatterns(filepath.Join(configPath, "patterns.json"))
-	}
-
-	// Initialize pattern analyzer for insights dashboard
-	pa := tasks.NewPatternAnalyzer()
-	if configPath, err := tasks.GetConfigDirPath(); err == nil {
+		patternReport, _ = pa.LoadPatterns(filepath.Join(configPath, "patterns.json"))
 		if loadErr := pa.LoadSessions(filepath.Join(configPath, "sessions.jsonl")); loadErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to load session history: %v\n", loadErr)
 		}
@@ -159,9 +154,6 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.avoidancePromptView != nil {
 			m.avoidancePromptView.SetWidth(msg.Width)
-		}
-		if m.insightsView != nil {
-			m.insightsView.SetWidth(msg.Width)
 		}
 		return m, nil
 

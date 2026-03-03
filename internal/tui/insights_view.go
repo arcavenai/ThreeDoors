@@ -156,11 +156,10 @@ func (iv *InsightsView) renderMoodCorrelations(s *strings.Builder) {
 		s.WriteString(fmt.Sprintf("  %-12s avg %.1f tasks/session (%d sessions)\n", c.Mood+":", c.AvgTasksCompleted, c.SessionCount))
 	}
 
-	mostProductive := iv.analyzer.GetMostProductiveMood()
+	// corrs is already sorted by productivity (highest first)
+	mostProductive := corrs[0].Mood
 	mostFrequent := iv.analyzer.GetMostFrequentMood()
-	if mostProductive != "" {
-		s.WriteString(fmt.Sprintf("  Most productive mood: %s\n", mostProductive))
-	}
+	s.WriteString(fmt.Sprintf("  Most productive mood: %s\n", mostProductive))
 	if mostFrequent != "" {
 		s.WriteString(fmt.Sprintf("  Most frequent mood: %s\n", mostFrequent))
 	}
