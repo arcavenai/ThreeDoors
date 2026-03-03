@@ -153,15 +153,15 @@ func (iv *InsightsView) renderMoodCorrelations(s *strings.Builder) {
 	}
 
 	for _, c := range corrs {
-		s.WriteString(fmt.Sprintf("  %-12s avg %.1f tasks/session (%d sessions)\n", c.Mood+":", c.AvgTasksCompleted, c.SessionCount))
+		fmt.Fprintf(s, "  %-12s avg %.1f tasks/session (%d sessions)\n", c.Mood+":", c.AvgTasksCompleted, c.SessionCount)
 	}
 
 	// corrs is already sorted by productivity (highest first)
 	mostProductive := corrs[0].Mood
 	mostFrequent := iv.analyzer.GetMostFrequentMood()
-	s.WriteString(fmt.Sprintf("  Most productive mood: %s\n", mostProductive))
+	fmt.Fprintf(s, "  Most productive mood: %s\n", mostProductive)
 	if mostFrequent != "" {
-		s.WriteString(fmt.Sprintf("  Most frequent mood: %s\n", mostFrequent))
+		fmt.Fprintf(s, "  Most frequent mood: %s\n", mostFrequent)
 	}
 	s.WriteString("\n")
 }
@@ -175,10 +175,10 @@ func (iv *InsightsView) renderDoorPreferences(s *strings.Builder) {
 		return
 	}
 
-	s.WriteString(fmt.Sprintf("  Left: %.0f%%  |  Center: %.0f%%  |  Right: %.0f%%\n", prefs.LeftPercent, prefs.CenterPercent, prefs.RightPercent))
+	fmt.Fprintf(s, "  Left: %.0f%%  |  Center: %.0f%%  |  Right: %.0f%%\n", prefs.LeftPercent, prefs.CenterPercent, prefs.RightPercent)
 
 	if prefs.HasBias {
-		s.WriteString(fmt.Sprintf("  You tend to pick the %s door — try mixing it up!\n", prefs.BiasPosition))
+		fmt.Fprintf(s, "  You tend to pick the %s door — try mixing it up!\n", prefs.BiasPosition)
 	}
 }
 
