@@ -54,21 +54,22 @@ func newMoodSetCmd() *cobra.Command {
 Use "custom" as the mood value followed by a custom text string for free-form moods.`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runMoodSet(args)
+			return runMoodSet(cmd, args)
 		},
 	}
 	return cmd
 }
 
-func runMoodSet(args []string) error {
-	formatter := NewOutputFormatter(os.Stdout, jsonOutput)
+func runMoodSet(cmd *cobra.Command, args []string) error {
+	isJSON := isJSONOutput(cmd)
+	formatter := NewOutputFormatter(os.Stdout, isJSON)
 	mood := strings.ToLower(args[0])
 	customText := ""
 
 	if mood == "custom" {
 		if len(args) < 2 {
 			msg := "custom mood requires a text argument"
-			if jsonOutput {
+			if isJSON {
 				_ = formatter.WriteJSONError("mood set", ExitValidation, msg, "")
 			} else {
 				fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
@@ -78,7 +79,7 @@ func runMoodSet(args []string) error {
 		customText = args[1]
 	} else if !isValidMood(mood) {
 		msg := fmt.Sprintf("invalid mood %q; valid moods: %s, custom", mood, strings.Join(validMoods, ", "))
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("mood set", ExitValidation, msg, "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
@@ -89,7 +90,7 @@ func runMoodSet(args []string) error {
 	// Record mood via a temporary session tracker and persist
 	configDir, err := core.GetConfigDirPath()
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("mood set", ExitGeneralError, fmt.Sprintf("config dir: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: config dir: %v\n", err)
@@ -103,7 +104,7 @@ func runMoodSet(args []string) error {
 
 	writer := core.NewMetricsWriter(configDir)
 	if err := writer.AppendSession(sessionMetrics); err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("mood set", ExitGeneralError, fmt.Sprintf("save mood: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: save mood: %v\n", err)
@@ -117,7 +118,7 @@ func runMoodSet(args []string) error {
 		CustomText: customText,
 	}
 
-	if jsonOutput {
+	if isJSON {
 		return formatter.WriteJSON("mood set", entry, nil)
 	}
 	if customText != "" {
@@ -133,18 +134,19 @@ func newMoodHistoryCmd() *cobra.Command {
 		Short: "Show recent mood entries",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runMoodHistory()
+			return runMoodHistory(cmd)
 		},
 	}
 	return cmd
 }
 
-func runMoodHistory() error {
-	formatter := NewOutputFormatter(os.Stdout, jsonOutput)
+func runMoodHistory(cmd *cobra.Command) error {
+	isJSON := isJSONOutput(cmd)
+	formatter := NewOutputFormatter(os.Stdout, isJSON)
 
 	configDir, err := core.GetConfigDirPath()
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("mood history", ExitGeneralError, fmt.Sprintf("config dir: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: config dir: %v\n", err)
@@ -156,7 +158,7 @@ func runMoodHistory() error {
 	reader := metrics.NewReader(sessionsPath)
 	sessions, err := reader.ReadAll()
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("mood history", ExitGeneralError, fmt.Sprintf("read sessions: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: read sessions: %v\n", err)
@@ -170,7 +172,7 @@ func runMoodHistory() error {
 		entries = append(entries, s.MoodEntries...)
 	}
 
-	if jsonOutput {
+	if isJSON {
 		return formatter.WriteJSON("mood history", entries, map[string]int{"total": len(entries)})
 	}
 

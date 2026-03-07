@@ -148,7 +148,7 @@ func TestRunStatsDaily_HumanReadable(t *testing.T) {
 	formatter := NewOutputFormatter(&buf, false)
 
 	analyzer := core.NewPatternAnalyzerWithNow(time.Now)
-	err := runStatsDaily(formatter, analyzer)
+	err := runStatsDaily(formatter, analyzer, false)
 	if err != nil {
 		t.Fatalf("runStatsDaily: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestRunStatsWeekly_HumanReadable(t *testing.T) {
 	formatter := NewOutputFormatter(&buf, false)
 
 	analyzer := core.NewPatternAnalyzerWithNow(time.Now)
-	err := runStatsWeekly(formatter, analyzer)
+	err := runStatsWeekly(formatter, analyzer, false)
 	if err != nil {
 		t.Fatalf("runStatsWeekly: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestRunStatsPatterns_InsufficientData(t *testing.T) {
 		{TasksCompleted: 2},
 	}
 
-	err := runStatsPatterns(formatter, analyzer, sessions)
+	err := runStatsPatterns(formatter, analyzer, sessions, false)
 	if err != nil {
 		t.Fatalf("runStatsPatterns: %v", err)
 	}

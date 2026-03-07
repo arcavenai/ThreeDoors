@@ -24,7 +24,7 @@ func newStatsCmd() *cobra.Command {
 		Short: "Display productivity statistics",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runStats(daily, weekly, patterns)
+			return runStats(cmd, daily, weekly, patterns)
 		},
 	}
 
@@ -43,12 +43,13 @@ type statsSummary struct {
 	TotalSessions  int     `json:"total_sessions"`
 }
 
-func runStats(daily, weekly, patterns bool) error {
-	formatter := NewOutputFormatter(os.Stdout, jsonOutput)
+func runStats(cmd *cobra.Command, daily, weekly, patterns bool) error {
+	isJSON := isJSONOutput(cmd)
+	formatter := NewOutputFormatter(os.Stdout, isJSON)
 
 	configDir, err := core.GetConfigDirPath()
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("stats", ExitGeneralError, fmt.Sprintf("config dir: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: config dir: %v\n", err)
@@ -60,7 +61,7 @@ func runStats(daily, weekly, patterns bool) error {
 	reader := metrics.NewReader(sessionsPath)
 	sessions, err := reader.ReadAll()
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("stats", ExitGeneralError, fmt.Sprintf("read sessions: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: read sessions: %v\n", err)
@@ -70,7 +71,7 @@ func runStats(daily, weekly, patterns bool) error {
 
 	analyzer := core.NewPatternAnalyzer()
 	if err := analyzer.LoadSessions(sessionsPath); err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("stats", ExitGeneralError, fmt.Sprintf("load sessions: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: load sessions: %v\n", err)
@@ -79,13 +80,13 @@ func runStats(daily, weekly, patterns bool) error {
 	}
 
 	if daily {
-		return runStatsDaily(formatter, analyzer)
+		return runStatsDaily(formatter, analyzer, isJSON)
 	}
 	if weekly {
-		return runStatsWeekly(formatter, analyzer)
+		return runStatsWeekly(formatter, analyzer, isJSON)
 	}
 	if patterns {
-		return runStatsPatterns(formatter, analyzer, sessions)
+		return runStatsPatterns(formatter, analyzer, sessions, isJSON)
 	}
 
 	return runStatsSummary(formatter, analyzer, sessions)
@@ -120,10 +121,10 @@ func runStatsSummary(formatter *OutputFormatter, analyzer *core.PatternAnalyzer,
 	return nil
 }
 
-func runStatsDaily(formatter *OutputFormatter, analyzer *core.PatternAnalyzer) error {
+func runStatsDaily(formatter *OutputFormatter, analyzer *core.PatternAnalyzer, isJSON bool) error {
 	dailyMap := analyzer.GetDailyCompletions(7)
 
-	if jsonOutput {
+	if isJSON {
 		return formatter.WriteJSON("stats.daily", dailyMap, nil)
 	}
 
@@ -143,10 +144,10 @@ func runStatsDaily(formatter *OutputFormatter, analyzer *core.PatternAnalyzer) e
 	return nil
 }
 
-func runStatsWeekly(formatter *OutputFormatter, analyzer *core.PatternAnalyzer) error {
+func runStatsWeekly(formatter *OutputFormatter, analyzer *core.PatternAnalyzer, isJSON bool) error {
 	wk := analyzer.GetWeekOverWeek()
 
-	if jsonOutput {
+	if isJSON {
 		return formatter.WriteJSON("stats.weekly", wk, nil)
 	}
 
@@ -157,10 +158,10 @@ func runStatsWeekly(formatter *OutputFormatter, analyzer *core.PatternAnalyzer) 
 	return nil
 }
 
-func runStatsPatterns(formatter *OutputFormatter, analyzer *core.PatternAnalyzer, sessions []core.SessionMetrics) error {
+func runStatsPatterns(formatter *OutputFormatter, analyzer *core.PatternAnalyzer, sessions []core.SessionMetrics, isJSON bool) error {
 	report, err := analyzer.Analyze(sessions)
 	if err != nil {
-		if jsonOutput {
+		if isJSON {
 			_ = formatter.WriteJSONError("stats.patterns", ExitGeneralError, fmt.Sprintf("analyze: %v", err), "")
 		} else {
 			fmt.Fprintf(os.Stderr, "Error: analyze: %v\n", err)
@@ -170,13 +171,13 @@ func runStatsPatterns(formatter *OutputFormatter, analyzer *core.PatternAnalyzer
 
 	if report == nil {
 		msg := "not enough sessions for pattern analysis (need at least 5)"
-		if jsonOutput {
+		if isJSON {
 			return formatter.WriteJSON("stats.patterns", nil, map[string]string{"message": msg})
 		}
 		return formatter.Writef("%s\n", msg)
 	}
 
-	if jsonOutput {
+	if isJSON {
 		return formatter.WriteJSON("stats.patterns", report, nil)
 	}
 
