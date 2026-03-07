@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/arcaven/ThreeDoors/internal/core"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -25,26 +29,53 @@ func newTaskAddCmd() *cobra.Command {
 		context  string
 		taskType string
 		effort   string
+		stdin    bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "add <text>",
+		Use:   "add [text]",
 		Short: "Add a new task",
-		Args:  cobra.ExactArgs(1),
+		Long: `Add a new task. Task text can be provided as an argument or via stdin.
+
+When stdin is not a TTY, text is read automatically from stdin (single task).
+Use --stdin to read multiple tasks, one per line.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTaskAdd(cmd, args[0], context, taskType, effort)
+			formatter := NewOutputFormatter(cmd.OutOrStdout(), jsonOutput)
+			errFormatter := NewOutputFormatter(cmd.ErrOrStderr(), jsonOutput)
+
+			stdinReader := cmd.InOrStdin()
+			isTTY := isTerminal(stdinReader)
+
+			if stdin {
+				return addTasksFromStdin(stdinReader, context, taskType, effort, formatter, errFormatter)
+			}
+
+			if len(args) > 0 {
+				text := strings.Join(args, " ")
+				return runTaskAdd(text, context, taskType, effort, formatter, errFormatter)
+			}
+
+			if !isTTY {
+				return addTasksFromStdin(stdinReader, context, taskType, effort, formatter, errFormatter)
+			}
+
+			return fmt.Errorf("task text required: provide as argument or pipe via stdin")
 		},
 	}
 
 	cmd.Flags().StringVar(&context, "context", "", "why this task matters")
 	cmd.Flags().StringVar(&taskType, "type", "", "task type (creative, administrative, technical, physical)")
 	cmd.Flags().StringVar(&effort, "effort", "", "effort level (quick-win, medium, deep-work)")
+	cmd.Flags().BoolVar(&stdin, "stdin", false, "read multiple tasks from stdin, one per line")
 
 	return cmd
 }
 
-func runTaskAdd(_ *cobra.Command, text, context, taskType, effort string) error {
-	formatter := NewOutputFormatter(os.Stdout, jsonOutput)
+func runTaskAdd(text, context, taskType, effort string, formatter, errFormatter *OutputFormatter) error {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return fmt.Errorf("task text cannot be empty")
+	}
 
 	var task *core.Task
 	if context != "" {
@@ -62,9 +93,9 @@ func runTaskAdd(_ *cobra.Command, text, context, taskType, effort string) error 
 
 	if err := task.Validate(); err != nil {
 		if jsonOutput {
-			_ = formatter.WriteJSONError("task add", ExitValidation, err.Error(), "")
+			_ = errFormatter.WriteJSONError("task add", ExitValidation, err.Error(), "")
 		} else {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			_ = errFormatter.Writef("Error: %v\n", err)
 		}
 		os.Exit(ExitValidation)
 	}
@@ -72,9 +103,9 @@ func runTaskAdd(_ *cobra.Command, text, context, taskType, effort string) error 
 	ctx, err := bootstrap()
 	if err != nil {
 		if jsonOutput {
-			_ = formatter.WriteJSONError("task add", ExitGeneralError, err.Error(), "")
+			_ = errFormatter.WriteJSONError("task add", ExitGeneralError, err.Error(), "")
 		} else {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			_ = errFormatter.Writef("Error: %v\n", err)
 		}
 		os.Exit(ExitGeneralError)
 	}
@@ -82,18 +113,94 @@ func runTaskAdd(_ *cobra.Command, text, context, taskType, effort string) error 
 	ctx.pool.AddTask(task)
 	if err := ctx.provider.SaveTask(task); err != nil {
 		if jsonOutput {
-			_ = formatter.WriteJSONError("task add", ExitProviderError, fmt.Sprintf("save task: %v", err), "")
+			_ = errFormatter.WriteJSONError("task add", ExitProviderError, fmt.Sprintf("save task: %v", err), "")
 		} else {
-			fmt.Fprintf(os.Stderr, "Error: save task: %v\n", err)
+			_ = errFormatter.Writef("Error: save task: %v\n", err)
 		}
 		os.Exit(ExitProviderError)
 	}
 
-	shortID := task.ID[:8]
 	if jsonOutput {
 		return formatter.WriteJSON("task add", task, nil)
 	}
-	return formatter.Writef("Created task %s: %s\n", shortID, task.Text)
+	return formatter.Writef("Created task %s: %s\n", shortID(task.ID), task.Text)
+}
+
+func addTasksFromStdin(reader io.Reader, context, taskType, effort string, formatter, errFormatter *OutputFormatter) error {
+	scanner := bufio.NewScanner(reader)
+	var createdTasks []*core.Task
+
+	ctx, err := bootstrap()
+	if err != nil {
+		return fmt.Errorf("bootstrap: %w", err)
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var task *core.Task
+		if context != "" {
+			task = core.NewTaskWithContext(line, context)
+		} else {
+			task = core.NewTask(line)
+		}
+
+		if taskType != "" {
+			task.Type = core.TaskType(taskType)
+		}
+		if effort != "" {
+			task.Effort = core.TaskEffort(effort)
+		}
+
+		if err := task.Validate(); err != nil {
+			if jsonOutput {
+				_ = errFormatter.WriteJSONError("task add", ExitValidation, err.Error(), "")
+			} else {
+				_ = errFormatter.Writef("Error adding task %q: %v\n", line, err)
+			}
+			continue
+		}
+
+		ctx.pool.AddTask(task)
+		if err := ctx.provider.SaveTask(task); err != nil {
+			if jsonOutput {
+				_ = errFormatter.WriteJSONError("task add", ExitGeneralError, "save failed", err.Error())
+			} else {
+				_ = errFormatter.Writef("Error adding task %q: %v\n", line, err)
+			}
+			continue
+		}
+		createdTasks = append(createdTasks, task)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read stdin: %w", err)
+	}
+
+	if len(createdTasks) == 0 {
+		return fmt.Errorf("no tasks created from stdin input")
+	}
+
+	if jsonOutput {
+		ids := make([]map[string]string, 0, len(createdTasks))
+		for _, t := range createdTasks {
+			ids = append(ids, map[string]string{
+				"id":   t.ID,
+				"text": t.Text,
+			})
+		}
+		return formatter.WriteJSON("task add", ids, map[string]int{"count": len(createdTasks)})
+	}
+
+	for _, t := range createdTasks {
+		if err := formatter.Writef("%s\n", shortID(t.ID)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // completeResult tracks the outcome of completing a single task.
@@ -217,4 +324,11 @@ func shortID(id string) string {
 		return id[:8]
 	}
 	return id
+}
+
+func isTerminal(r io.Reader) bool {
+	if f, ok := r.(*os.File); ok {
+		return isatty.IsTerminal(f.Fd())
+	}
+	return false
 }

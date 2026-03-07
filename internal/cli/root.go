@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ launch the interactive TUI, or use subcommands for scriptable access.`,
 
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 
+	cmd.AddCommand(NewConfigCmd())
 	cmd.AddCommand(newTaskCmd())
 
 	return cmd
@@ -31,6 +33,10 @@ launch the interactive TUI, or use subcommands for scriptable access.`,
 func Execute() int {
 	root := NewRootCmd()
 	if err := root.Execute(); err != nil {
+		var ee *exitError
+		if errors.As(err, &ee) {
+			return ee.code
+		}
 		formatter := NewOutputFormatter(os.Stderr, jsonOutput)
 		if jsonOutput {
 			_ = formatter.WriteJSONError("", ExitGeneralError, err.Error(), "")
