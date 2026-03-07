@@ -1,6 +1,9 @@
 package core
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestTaskPool_AddAndGet(t *testing.T) {
 	pool := NewTaskPool()
@@ -219,5 +222,106 @@ func TestTaskPool_FindBySourceRef_NoRefsTask(t *testing.T) {
 	// Should not panic, just return nil for any lookup
 	if pool.FindBySourceRef("any", "any") != nil {
 		t.Error("expected nil for task with no source refs")
+	}
+}
+
+func TestTaskPool_FindByPrefix(t *testing.T) {
+	t.Parallel()
+
+	pool := NewTaskPool()
+	t1 := &Task{ID: "abc12345-0000-0000-0000-000000000000", Text: "First task", Status: StatusTodo}
+	t2 := &Task{ID: "abc12345-1111-1111-1111-111111111111", Text: "Second task", Status: StatusTodo}
+	t3 := &Task{ID: "def67890-0000-0000-0000-000000000000", Text: "Third task", Status: StatusTodo}
+	pool.AddTask(t1)
+	pool.AddTask(t2)
+	pool.AddTask(t3)
+
+	tests := []struct {
+		name      string
+		prefix    string
+		wantID    string
+		wantErr   error
+		wantAnyID bool // when we just want to check an error, not a specific ID
+	}{
+		{
+			name:   "exact full ID match",
+			prefix: "abc12345-0000-0000-0000-000000000000",
+			wantID: "abc12345-0000-0000-0000-000000000000",
+		},
+		{
+			name:   "unique prefix match",
+			prefix: "def",
+			wantID: "def67890-0000-0000-0000-000000000000",
+		},
+		{
+			name:    "ambiguous prefix",
+			prefix:  "abc",
+			wantErr: ErrAmbiguousPrefix,
+		},
+		{
+			name:    "no match",
+			prefix:  "zzz",
+			wantErr: ErrTaskNotFound,
+		},
+		{
+			name:    "empty prefix",
+			prefix:  "",
+			wantErr: ErrTaskNotFound,
+		},
+		{
+			name:   "longer unique prefix",
+			prefix: "abc12345-0000",
+			wantID: "abc12345-0000-0000-0000-000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := pool.FindByPrefix(tt.prefix)
+
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Fatalf("FindByPrefix(%q) = nil error, want %v", tt.prefix, tt.wantErr)
+				}
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("FindByPrefix(%q) error = %v, want %v", tt.prefix, err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("FindByPrefix(%q) unexpected error: %v", tt.prefix, err)
+			}
+			if got.ID != tt.wantID {
+				t.Errorf("FindByPrefix(%q).ID = %q, want %q", tt.prefix, got.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestTaskPool_FindByPrefix_EmptyPool(t *testing.T) {
+	t.Parallel()
+
+	pool := NewTaskPool()
+	_, err := pool.FindByPrefix("abc")
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Errorf("FindByPrefix on empty pool: got %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestTaskPool_FindByPrefix_SingleTask(t *testing.T) {
+	t.Parallel()
+
+	pool := NewTaskPool()
+	task := &Task{ID: "unique-id-12345", Text: "Only task", Status: StatusTodo}
+	pool.AddTask(task)
+
+	got, err := pool.FindByPrefix("u")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != task.ID {
+		t.Errorf("got ID %q, want %q", got.ID, task.ID)
 	}
 }

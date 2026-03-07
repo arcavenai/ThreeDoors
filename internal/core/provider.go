@@ -6,6 +6,12 @@ import "errors"
 // Used by FallbackProvider to detect when to delegate to the fallback.
 var ErrReadOnly = errors.New("provider is read-only")
 
+// ErrTaskNotFound is returned when a task ID or prefix has no matches in the pool.
+var ErrTaskNotFound = errors.New("task not found")
+
+// ErrAmbiguousPrefix is returned when an ID prefix matches multiple tasks.
+var ErrAmbiguousPrefix = errors.New("ambiguous prefix")
+
 // ChangeType identifies the kind of modification in a ChangeEvent.
 type ChangeType string
 

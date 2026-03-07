@@ -1,5 +1,10 @@
 package core
 
+import (
+	"fmt"
+	"strings"
+)
+
 // sourceRefKey is the composite key for the SourceRef index.
 type sourceRefKey struct {
 	Provider string
@@ -140,6 +145,31 @@ func (tp *TaskPool) removeSourceRefIndex(task *Task) {
 	for _, ref := range task.SourceRefs {
 		key := sourceRefKey(ref)
 		delete(tp.sourceRefIndex, key)
+	}
+}
+
+// FindByPrefix finds a task whose ID starts with the given prefix.
+// Returns ErrTaskNotFound if no task matches, or a descriptive error
+// wrapping ErrAmbiguousPrefix if multiple tasks match.
+func (tp *TaskPool) FindByPrefix(prefix string) (*Task, error) {
+	if prefix == "" {
+		return nil, fmt.Errorf("empty prefix: %w", ErrTaskNotFound)
+	}
+
+	var matches []*Task
+	for id, task := range tp.tasks {
+		if strings.HasPrefix(id, prefix) {
+			matches = append(matches, task)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("no task matching prefix %q: %w", prefix, ErrTaskNotFound)
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("prefix %q matches %d tasks: %w", prefix, len(matches), ErrAmbiguousPrefix)
 	}
 }
 
